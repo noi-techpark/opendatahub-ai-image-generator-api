@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Viewer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+
+</head>
+
+<body>
+    <div class="container">
+        <aside class="sidebar">
+            <h1>Image Viewer</h1>
+            <nav>
+                <ul>
+                    <li><a href="{{ url_for('display_image') }}">Home</a></li>
+                    <li class="dropdown">
+                        <a href="#" class="dropbtn">Tourism</a>
+                        <div class="dropdown-content">
+                            <div class="sub-dropdown">
+                                <a href="#" class="toggle-sub-dropdown">Common  ►</a>
+                                <div class="sub-dropdown-content">
+                                    <a href="{{ url_for('display_image', section='Region') }}">Region</a>
+                                    <a href="{{ url_for('display_image', section='Municipality') }}">Municipality</a>
+                                    <a href="{{ url_for('display_image', section='TourismAssociation') }}">TourismAssociation</a>
+                                    <a href="{{ url_for('display_image', section='District') }}">District</a>
+                                    <a href="{{ url_for('display_image', section='SkiRegion') }}">SkiRegion</a>
+                                    <a href="{{ url_for('display_image', section='SkiArea') }}">SkiArea</a>
+                                    <a href="{{ url_for('display_image', section='WineAward') }}">WineAward</a>
+                                </div>
+                            </div>
+                            <div class="sub-dropdown">
+                                <a href="{{ url_for('display_image', section='Accommodation') }}">Accommodation</a>
+                                <a href="{{ url_for('display_image', section='Event') }}">Event</a>
+                                <a href="{{ url_for('display_image', section='Venue') }}">Venue</a>
+                                <a href="{{ url_for('display_image', section='Weather') }}">Weather</a>
+                                <a href="{{ url_for('display_image', section='WebcamInfo') }}">WebcamInfo</a>
+                                <a href="{{ url_for('display_image', section='Article') }}">Article</a>
+                                <a href="{{ url_for('display_image', section='EventShort') }}">EventShort</a>
+                                <a href="{{ url_for('display_image', section='ODHActivityPoi') }}">ActivityPoi</a>
+                            </div>
+
+                        </div>
+                    </li>
+                    <li class="dropdown">
+                        <a href="{{ url_for('display_image', section='Mobility') }}">Mobility</a>
+                    </li>
+                    <li class="dropdown">
+                        <a href="{{ url_for('display_single_image') }}">Generate</a>
+                    </li>
+
+                </ul>
+            </nav>
+        </aside>
+        <main>
+            <div class="filter-section">
+                <label for="imageFilter">Filter:</label>
+                <select id="imageFilter" class="custom-select">
+                    <option value="all">All Images</option>
+                    <option value="saved">Saved Images</option>
+                    <option value="new">New Images</option>
+                </select>
+
+            </div>
+            <div id="zoomImageView" class="hidden">
+                <span id="closeButton" onclick="closeImage()"><i class="fa-solid fa-xmark"></i></span>
+                <img id="enlargedImg" src="{{ single_image_url }}" alt="Image">
+            </div>
+
+            <div id="tableView">
+                <table>
+                    <thead>
+                        <tr>
+                            <th class="new"></th>
+                            <th class="image">Image</th>
+                            <th class="info">Information</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% if selected_filter == 'all' %}
+                            {% for image_url in s3_image_urls %}
+                                {% set image_name = os.path.basename(image_url).split('.')[0] %}
+                                {% set matching_row = df[df['Id'] == image_name] %}
+                                {% set image_info = show_image_info(df, image_name) %}
+                                {% if not matching_row.empty %}
+                                    <tr>
+                                        <td>{% if image_url.startswith(base_url + '/images/') %}<p class="new_text">NEW</p>{% endif %}</td>
+                                        <td class="image"><img src="{{ image_url }}" alt="Image" onclick="enlargeImage('{{ image_url }}')"></td>
+                                        <td class="info">{{ image_info }}
+                                            {% if image_url.startswith(base_url + '/images/') %}
+                                                <form id="saveForm" class="button-form">
+                                                    <input type="hidden" name="section" value="{{ section }}">
+                                                    <button type="button" onclick="saveImage('{{ image_url }}')" class="save-button">Save</button>
+                                                    <button
+                                                    type="button" name="choice" value="delete" class="discard-button"
+                                                    onclick="deleteImage('{{ image_url }}')"> Delete
+                                                </button>
+                                                </form>
+                                             {% endif %}
+                                         </td>
+                                    </tr>
+                                {% endif %}
+                            {% endfor %}
+                        {% elif selected_filter == 'saved' %}
+                            {% for image_url in s3_image_urls %}
+                                {% if image_url.startswith(base_url + '/saved/') %}
+                                    {% set image_name = os.path.basename(image_url).split('.')[0] %}
+                                    {% set matching_row = df[df['Id'] == image_name] %}
+                                    {% set image_info = show_image_info(df, image_name) %}
+                                    {% if not matching_row.empty %}
+                                        <tr>
+                                            <td class="new"></td>
+                                            <!-- Aggiungi un attributo 'onclick' per ingrandire l'immagine -->
+                                            <td class="image"><img src="{{ image_url }}" alt="Image" onclick="enlargeImage('{{ image_url }}')"></td>
+                                            <!-- Add other info columns here -->
+                                            <td class="info">{{ image_info }}</td>
+                                        </tr>
+                                    {% endif %}
+                                {% endif %}
+                            {% endfor %}
+                        {% elif selected_filter == 'new' %}
+                            {% for image_url in s3_image_urls %}
+                                {% if image_url.startswith(base_url + '/images/') %}
+                                    {% set image_name = os.path.basename(image_url).split('.')[0] %}
+                                    {% set matching_row = df[df['Id'] == image_name] %}
+                                    {% set image_info = show_image_info(df, image_name) %}
+                                    {% if not matching_row.empty %}
+                                        <tr>
+                                            <td class="new"></td>
+                                            <td class="image"><img src="{{ image_url }}" alt="Image" onclick="enlargeImage('{{ image_url }}')"></td>
+                                            <td class="info">{{ image_info }}
+                                                <form id="saveForm" class="button-form">
+                                                <input type="hidden" name="section" value="{{ section }}">
+                                                <button type="button" onclick="saveImage('{{ image_url }}')" class="save-button">Save</button>
+                                                <button type="submit" name="choice" value="discard" class="discard-button">Discard</button>
+                                            </form>
+                                        </td>
+
+                                        </tr>
+                                    {% endif %}
+                                {% endif %}
+                            {% endfor %}
+                        {% endif %}
+                    </tbody>
+                </table>
+            </main>
+            </div>
+            <script>
+            function enlargeImage(imageUrl) {
+                $("#enlargedImg").attr("src", imageUrl);
+                $("#zoomImageView").removeClass("hidden");
+                $("#zoomImageView").fadeIn(function() {
+                    // Callback chiamato quando la transizione fadeIn è completa
+                    $("#zoomImageView").css("display", "flex");
+                });
+            }
+
+            // JavaScript code to close the enlarged image
+            function closeImage() {
+                $("#zoomImageView").addClass("hidden");
+                $("#zoomImageView").fadeOut();
+            }
+            function saveImage(imageUrl) {
+                var section = "{{ section }}";
+
+                $.ajax({
+                    type: "POST",
+                    url: "{{ url_for('process_choice') }}",
+                    data: { choice: 'save', section: section, imageUrl: imageUrl },
+                    success: function(response) {
+                        if (response.status === 'success') {
+                            window.location.reload();
+                            alert("Image saved correctly");
+                        } else {
+                            alert("Failed to save image");
+                        }
+                    },
+                    error: function(error) {
+                        console.error("Error saving image: ", error);
+                    }
+                });
+            }
+            function deleteImage(imageUrl) {
+                var section = "{{ section }}";
+
+                $.ajax({
+                type: "POST",
+                url: "{{ url_for('process_choice') }}",
+                data: { choice: "delete", section: section, imageUrl: imageUrl },
+                success: function (response) {
+                    if (response.status === "success") {
+                    window.location.reload();
+                    alert("Image deleted correctly");
+                    } else {
+                    alert("Failed to delete image");
+                    }
+                },
+                error: function (error) {
+                    console.error("Error saving image: ", error);
+                },
+                });
+            }
+            document.addEventListener('DOMContentLoaded', function () {
+                var imageFilter = document.getElementById('imageFilter');
+                var currentFilter = "{{ selected_filter }}";  // Get the current filter from Flask variable
+
+                // Set the selected filter in the dropdown
+                if (currentFilter === 'all') {
+                    imageFilter.value = 'all';
+                } else if (currentFilter === 'saved') {
+                    imageFilter.value = 'saved';
+                } else if (currentFilter === 'new') {
+                    imageFilter.value = 'new';
+                }
+
+                imageFilter.addEventListener('change', function () {
+                    var selectedFilter = imageFilter.value;
+
+                    // Redirect based on the selected filter
+                    if (selectedFilter === 'all') {
+                        window.location.href = "{{ url_for('display_image') }}?section={{ section }}&filter=all";
+                    } else if (selectedFilter === 'saved') {
+                        window.location.href = "{{ url_for('display_image') }}?section={{ section }}&filter=saved";
+                    } else if (selectedFilter === 'new') {
+                        window.location.href = "{{ url_for('display_image') }}?section={{ section }}&filter=new";
+                    }
+                });
+            });
+            function submitForm() {
+                var section = encodeURIComponent(document.getElementById("section").value);
+                var imageId = encodeURIComponent(document.getElementById("imageId").value);
+                // Redirect to the display_single_image route with section and imageId
+                window.location.href = "{{ url_for('display_single_image') }}?section=" + section + "&imageId=" + imageId;      
+            }
+            document.addEventListener('DOMContentLoaded', function () {
+            var toggleSubDropdown = document.querySelector('.toggle-sub-dropdown');
+            var subDropdownContent = document.querySelector('.sub-dropdown-content');
+
+            toggleSubDropdown.addEventListener('click', function () {
+                subDropdownContent.classList.toggle('active');
+            });
+        });
+
+        </script>
+</body>
+
+</html>
